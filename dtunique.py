@@ -63,11 +63,6 @@ class DTdistinct(object):
         return feature_idx
 
     def DT(self, feature_index_set: set):
-        ''' 
-        returns (DT, U)
-        DT - Tree from R U S
-        U - Set of unused features from R U S
-        '''
         X = self.dataset.iloc[:, list(feature_index_set)]
         y = self.dataset.iloc[:, -1:]
         T = DecisionTreeClassifier(random_state=self.random_state)
@@ -77,29 +72,16 @@ class DTdistinct(object):
         return T, U
 
     def DTdistinct_enumerator_core(self, R: set, S: set, trees: list, subsets: list):
-        '''
-        R, S - set of feature names
-        '''
-        print("=====================================")
-        print(f"R = {R}")
-        print(f"S = {S}")
         if len(R) == 0:
             return
         T, U = self.DT(R | S)
         if len(R & U) == 0:
-            print(f"chosen features = {self.get_feature_set(T)}")
-            print(f"unused features = {U}")
-            print(f"all features = {R | S}")
-            print("tree chosen")
             trees.append(T)
             subsets.append(R | S)
-            # yield T
         Rtag = R | ( S - U )
         Stag = S & U
         front = self.frontier(T, S-U)
-        print(f"front = {front}")
         for ai in front:
-            print(f"ai = {ai}")
             Rtag = Rtag - set([ai])
             self.DTdistinct_enumerator_core(Rtag, Stag, trees, subsets)
             Stag = Stag | set([ai])
@@ -112,9 +94,6 @@ class DTdistinct(object):
 
     @staticmethod
     def subset_core(R: set, S: set, trees: list):
-        '''
-        R, S - set of feature names
-        '''
         if len(R | S) == 0:
             return
         trees.append(R | S)
