@@ -24,19 +24,15 @@ for ds_dict in datasets:
     print("starting {0}".format(ds_dict["name"]))
     dataset = pd.read_csv(ds_dict["path"])
     dtd = DTdistinct(dataset, random_state=7)
-    R = set(range(4))
+    S = set([10,11,12,13,14,15,16,17,18,19,20,21,22])
     # R = set(range(dataset.shape[1]-1))
-    S = set()
-
-    # subsets = DTdistinct.subset({1}, {2,3})
-    # x=1
+    R = set()
 
     # for tree in dtd.DTdistinct_enumerator(R, S):
     #     print("tree ")
 
     trees = dtd.DTdistinct_enumerator(R, S)
-    for tree in trees:
-        print("iteration")
+    print(len(trees))
 
     # for t in dtd.DTdistinct_enumerator(R, S):
     #     print("iteration")

@@ -2,6 +2,11 @@ from sklearn.tree import DecisionTreeClassifier
 import numpy as np
 import pandas as pd
 
+class TreeAndFeatures(object):
+    def __init__(self, tree: DecisionTreeClassifier, feature_list: list):
+        self.dtree = tree
+        self.feature_list = feature_list
+
 class DTdistinct(object):
     def __init__(self, dataset: pd.DataFrame, random_state=None):
         self.dataset = dataset
@@ -40,61 +45,95 @@ class DTdistinct(object):
                 feature_samplecount_tuple.append((current_node_feature, current_node_sample_count))
         return feature_samplecount_tuple
 
-    def get_feature_set(self, T: DecisionTreeClassifier):
+    def get_feature_indexes(self, T: DecisionTreeClassifier):
         '''
         
         '''
         feature_samplecount_tuples = self.get_feature_samplecount_tuple(T)
-        feature_set = set([feature_idx for (feature_idx, samplecount) in feature_samplecount_tuples])
-        return feature_set
+        feature_idx_set = set([feature_idx for (feature_idx, samplecount) in feature_samplecount_tuples])
+        return feature_idx_set
 
-    def frontier(self, T: DecisionTreeClassifier, SmU: set):
-        unique_samplecount = dict.fromkeys(self.get_feature_set(T), 0)
-        feature_samplecount_tuples = self.get_feature_samplecount_tuple(T)
-        #filter out features that are not in SmU
-        feature_samplecount_tuples = list(filter(lambda tuple: tuple[0] in SmU, feature_samplecount_tuples))
-        #sum unique sample count
+    def frontier(self, TF: TreeAndFeatures, SmU: set):
+        #sum unique sample count 
+        unique_samplecount = dict.fromkeys(self.get_feature_indexes(TF.dtree), 0)
+        feature_samplecount_tuples = self.get_feature_samplecount_tuple(TF.dtree)
         for feature_idx, samplecount in feature_samplecount_tuples:
             unique_samplecount[feature_idx] += samplecount
+        unique_feature_samplecount_tuples = unique_samplecount.items()
+        #feature indexes to feature values
+        unique_feature_samplecount_tuples = [(TF.feature_list[feature_idx], samplecount) for (feature_idx, samplecount) in unique_feature_samplecount_tuples]
+        #filter out features that are not in SmU
+        feature_samplecount_tuples = list(filter(lambda tuple: tuple[0] in SmU, unique_feature_samplecount_tuples))        
         #order by samplecount, ascending. feature tuples := (feature_idx, samplecount)
-        feature_tuples = sorted(unique_samplecount.items(),
+        feature_tuples = sorted(feature_samplecount_tuples,
                                                     key = lambda tuple: tuple[1], reverse=False)
-        feature_idx = [feature_idx for (feature_idx, samplecount) in feature_tuples]
-        return feature_idx
+        feature_value = [feature_value for (feature_value, samplecount) in feature_tuples]
+        return feature_value
 
     def DT(self, feature_index_set: set):
-        X = self.dataset.iloc[:, list(feature_index_set)]
+        ''' 
+        returns (TF, U)
+        TF - TreeAndFeatures from R U S
+        U - Set of unused features from R U S
+        '''
+        # [11, 12, 13]
+        # TODO TF feature list should contain all give features
+        # fix feature set
+        feature_index_list_val = list(feature_index_set)
+        X = self.dataset.iloc[:, feature_index_list_val]
         y = self.dataset.iloc[:, -1:]
         T = DecisionTreeClassifier(random_state=self.random_state)
         T = T.fit(X, y)
-        feature_set = self.get_feature_set(T)
-        U = feature_index_set - feature_set
-        return T, U
+        # [0, 1]
+        feature_index_list_idx = self.get_feature_indexes(T)
+        feature_list = list(map(lambda idx: feature_index_list_val[idx], feature_index_list_idx))
+        TF = TreeAndFeatures(tree=T, feature_list=feature_index_list_val)
+        U = feature_index_set - set(feature_list)
+        return TF, U
 
-    def DTdistinct_enumerator_core(self, R: set, S: set, trees: list, subsets: list):
-        if len(R) == 0:
+    def DTdistinct_enumerator_core(self, R: set, S: set, trees: list, subsets: list, indent: int):
+        '''
+        R, S - set of feature names
+        '''
+        if len(R | S) == 0:
             return
-        T, U = self.DT(R | S)
+        TF, U = self.DT(R | S)
+        indentation = ' ' * indent
+        print(indentation + "=====================================")
+        print(indentation + f"R = {R}")
+        print(indentation + f"S = {S}")
+        print(indentation + f"chosen features = {TF.feature_list}")
+        print(indentation + f"unused features = {U}")
+        print(indentation + f"all features = {R | S}")
         if len(R & U) == 0:
-            trees.append(T)
+            print(indentation + "tree chosen")
+            trees.append(TF)
             subsets.append(R | S)
+        print(indentation + "=====================================")
+        if len(S) == 0:
+            return
         Rtag = R | ( S - U )
         Stag = S & U
-        front = self.frontier(T, S-U)
+        front = self.frontier(TF, S-U)
+        print(indentation + f"front = {front}")
         for ai in front:
+            print(indentation + f"ai = {ai}")
             Rtag = Rtag - set([ai])
-            self.DTdistinct_enumerator_core(Rtag, Stag, trees, subsets)
+            self.DTdistinct_enumerator_core(Rtag, Stag, trees, subsets, indent+1)
             Stag = Stag | set([ai])
 
     def DTdistinct_enumerator(self, R, S):
         trees = []
         subsets = []
-        self.DTdistinct_enumerator_core(R, S, trees, subsets)
+        self.DTdistinct_enumerator_core(R, S, trees, subsets, 0)
         return trees, subsets
 
     @staticmethod
     def subset_core(R: set, S: set, trees: list):
-        if len(R | S) == 0:
+        '''
+        R, S - set of feature names
+        '''
+        if len(S) == 0:
             return
         trees.append(R | S)
         Rtag = set(R | S)
