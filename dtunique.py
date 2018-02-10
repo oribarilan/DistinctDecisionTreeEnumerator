@@ -45,6 +45,11 @@ class DTdistinct(object):
                 feature_samplecount_tuple.append((current_node_feature, current_node_sample_count))
         return feature_samplecount_tuple
 
+    def get_chosen_features_values(self, TF: TreeAndFeatures):
+        feature_index_list_idx = self.get_feature_indexes(TF.dtree)
+        feature_list_val = list(map(lambda idx: TF.feature_list[idx], feature_index_list_idx))
+        return feature_list_val
+
     def get_feature_indexes(self, T: DecisionTreeClassifier):
         '''
         
@@ -70,7 +75,7 @@ class DTdistinct(object):
         feature_value = [feature_value for (feature_value, samplecount) in feature_tuples]
         return feature_value
 
-    def DT(self, feature_index_set: set):
+    def DT(self, feature_values_set: set):
         ''' 
         returns (TF, U)
         TF - TreeAndFeatures from R U S
@@ -79,19 +84,18 @@ class DTdistinct(object):
         # [11, 12, 13]
         # TODO TF feature list should contain all give features
         # fix feature set
-        feature_index_list_val = list(feature_index_set)
-        X = self.dataset.iloc[:, feature_index_list_val]
+        feature_values_list = list(feature_values_set)
+        X = self.dataset.iloc[:, feature_values_list]
         y = self.dataset.iloc[:, -1:]
         T = DecisionTreeClassifier(random_state=self.random_state)
         T = T.fit(X, y)
         # [0, 1]
-        feature_index_list_idx = self.get_feature_indexes(T)
-        feature_list = list(map(lambda idx: feature_index_list_val[idx], feature_index_list_idx))
-        TF = TreeAndFeatures(tree=T, feature_list=feature_index_list_val)
-        U = feature_index_set - set(feature_list)
+        TF = TreeAndFeatures(tree=T, feature_list=feature_values_list)
+        chosen_feature_values = self.get_chosen_features_values(TF)
+        U = feature_values_set - set(chosen_feature_values)
         return TF, U
 
-    def DTdistinct_enumerator_core(self, R: set, S: set, trees: list, subsets: list, indent: int):
+    def DTdistinct_enumerator_core(self, R: set, S: set, trees: list, indent: int):
         '''
         R, S - set of feature names
         '''
@@ -102,13 +106,13 @@ class DTdistinct(object):
         print(indentation + "=====================================")
         print(indentation + f"R = {R}")
         print(indentation + f"S = {S}")
-        print(indentation + f"chosen features = {TF.feature_list}")
+        print(indentation + f"chosen features = {self.get_chosen_features_values(TF)}")
         print(indentation + f"unused features = {U}")
         print(indentation + f"all features = {R | S}")
         if len(R & U) == 0:
             print(indentation + "tree chosen")
             trees.append(TF)
-            subsets.append(R | S)
+            # subsets.append(R | S)
         print(indentation + "=====================================")
         if len(S) == 0:
             return
@@ -119,14 +123,13 @@ class DTdistinct(object):
         for ai in front:
             print(indentation + f"ai = {ai}")
             Rtag = Rtag - set([ai])
-            self.DTdistinct_enumerator_core(Rtag, Stag, trees, subsets, indent+1)
+            self.DTdistinct_enumerator_core(Rtag, Stag, trees, indent+1)
             Stag = Stag | set([ai])
 
     def DTdistinct_enumerator(self, R, S):
         trees = []
-        subsets = []
-        self.DTdistinct_enumerator_core(R, S, trees, subsets, 0)
-        return trees, subsets
+        self.DTdistinct_enumerator_core(R, S, trees, 0)
+        return trees
 
     @staticmethod
     def subset_core(R: set, S: set, trees: list):
